@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BRAT/STAGE v4 • Interactive simulated Spotify player</title>
+<style>body{margin:0;background:#0b0c0b;color:white;font:14px Arial,sans-serif}</style>
+</head><body>
+<script>
+  const demoCover = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#9ad62f"/><stop offset="1" stop-color="#5f9c1c"/></linearGradient><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".32" numOctaves="3" stitchTiles="stitch"/></filter></defs><rect width="800" height="800" fill="url(#g)"/><rect width="800" height="800" filter="url(#n)" opacity=".13"/><text x="380" y="460" font-family="Arial,Helvetica,sans-serif" font-size="167" fill="#10190a" text-anchor="middle" letter-spacing="-16" font-weight="800" transform="rotate(-4 400 400)">brat.</text><text x="53" y="727" font-size="17" font-family="Arial" fill="#243313" letter-spacing="6">STAGE DEMO EDITION / 001</text></svg>`;
+  const cover='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(demoCover);
+  const demoLyrics=`[00:00.00] green light on the bedroom wall
+[00:04.50] we stay awake until the morning calls
+[00:09.00] electric heart in a velvet room
+[00:13.50]<00:13.50>watch <00:14.00>the <00:14.50>whole <00:15.20>sky <00:15.95>change <00:16.70>its <00:17.12>mood
+[00:18.00]<00:18.00>i <00:18.35>can <00:18.75>hear <00:19.20>it <00:19.60>in <00:20.10>the <00:20.60>atmosphere
+[00:22.50] let the rhythm make the night appear
+[00:27.00] no one needs to understand
+[00:31.50] all these colors in the palm of my hand
+[00:36.00] get a little closer to the sound
+[00:40.50] let the headlights spin around
+[00:45.00] it's the time we make, not the time we spend
+[00:49.50] keep on dancing till the daylight bends
+[00:54.00] something different is about to begin
+[00:58.50] and the lights come back again
+[01:03.00] we turn up the volume of a neon day
+[01:07.50] find ourselves in a brand new way
+[01:12.00] with the last beat still under our skin
+[01:16.50] let the next bright chapter begin`;
+  const uri='spotify:track:bratstage-demo-001';
+  localStorage.setItem('bratstage:v1:customLrc',JSON.stringify({[uri]:demoLyrics}));
+  let position=20200,playing=true,volume=.64,muted=false,stamp=Date.now();
+  const subs={};
+  const emit=(name,data)=>{for(const f of subs[name]||[])f({data});};
+  const positionNow=()=>playing?Math.min(96000,position+Date.now()-stamp):position;
+  const setPos=p=>{position=p;stamp=Date.now();emit('onprogress',p);};
+  window.Spicetify={
+    Platform:{},LocalStorage:{get:k=>localStorage.getItem(k),set:(k,v)=>localStorage.setItem(k,v),remove:k=>localStorage.removeItem(k)},
+    Player:{
+      data:{item:{uri,name:'electric afterglow',metadata:{artist_name:'THE NEON CLUB',album_title:'green room / 2026',image_url:cover}}},
+      getDuration:()=>96000,getProgress:positionNow,isPlaying:()=>playing,getVolume:()=>muted?0:volume,getMute:()=>muted,
+      togglePlay:()=>{setPos(positionNow());playing=!playing;emit('onplaypause',{});},
+      seek:pos=>setPos(Math.min(96000,Math.max(0,pos))),
+      back:()=>setPos(0),next:()=>setPos(0),setVolume:val=>{volume=val;muted=false;},toggleMute:()=>muted=!muted,
+      addEventListener:(key,fn)=>(subs[key]??=[]).push(fn),removeEventListener:(key,fn)=>subs[key]=(subs[key]||[]).filter(x=>x!==fn)
+    },
+    Playbar:{Button:class{constructor(_label,_icon,click){this.onclick=click}}},
+    Topbar:{Button:class{constructor(_label,_icon,click){this.onclick=click}}},
+    showNotification:(m)=>console.info('[Demo notification]',m),
+    getAudioData:async()=>({beats:Array.from({length:190},(_,i)=>({start:i*.5,confidence:.75}))})
+  };
+</script>
+<script src="bratstage.js"></script>
+<script>window.addEventListener('load',()=>setTimeout(()=>window.BratStage?.open(),130));</script>
+</body></html>
