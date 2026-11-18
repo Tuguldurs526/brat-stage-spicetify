@@ -1,0 +1,13 @@
+{
+  "type": "extension",
+  "name": "BRAT/STAGE",
+  "version": "5.0.0",
+  "description": "Immersive BRAT-style fullscreen lyrics with word timing, cinematic colors, video backgrounds, and responsive playback controls.",
+  "main": "dist/bratstage.spotikit.js",
+  "readme": "README.md",
+  "preview": "screenshots/preview-player.png",
+  "authors": [
+    {"name": "Tuguldurs526", "url": "https://github.com/Tuguldurs526"}
+  ],
+  "tags": ["lyrics", "fullscreen", "cinematic", "visualizer", "customizable"]
+}

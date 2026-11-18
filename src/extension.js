@@ -1,19 +1,32 @@
-/* BratStage v4.0 — original open-source fullscreen lyrics extension for Spicetify.
+/* BRAT/STAGE v5 — shared full-screen lyrics extension for Spicetify and SpotiKit.
  * No third-party JS dependencies. LRCLIB lyric text belongs to its respective holders.
  * THIS_FILE_IS_COMPILED with src/core.js + src/style.css; see scripts/build.py.
  */
-(function BratStageBootstrap() {
+function BratStageBootstrap(runtime, lifecycle) {
   'use strict';
-  if (window.__bratStageLoaded) return;
-  if (!window.Spicetify?.Player || !window.Spicetify?.Platform) {
-    setTimeout(BratStageBootstrap, 250);
-    return;
+  runtime = runtime || window.Spicetify;
+  lifecycle = lifecycle || null;
+  if (window.__bratStageLoaded) {
+    console.warn("[BratStage] Already loaded; disable the duplicate installation.");
+    return () => {};
+  }
+  if (!runtime?.Player || !runtime?.Platform) {
+    if (!lifecycle) setTimeout(() => BratStageBootstrap(), 250);
+    return () => {};
   }
   window.__bratStageLoaded = true;
 
   const C = BratStageCore;
   const PREFIX = 'bratstage:v1:'; // retain v1 keys to migrate existing preferences
-  const S = window.Spicetify;
+  const S = runtime;
+  const PLATFORM = lifecycle ? "SpotiKit" : "Spicetify";
+  const globalListeners = [];
+  const ownedButtons = [];
+  let disposed = false;
+  const listenGlobal = (target, type, fn, options) => {
+    target.addEventListener(type, fn, options);
+    globalListeners.push(() => target.removeEventListener(type, fn, options));
+  };
   const FONTS = {
     brutal: 'Arial, Helvetica, sans-serif',
     black: '"Arial Black", Impact, Arial, sans-serif',
@@ -41,7 +54,7 @@
     fontWeight:900, lineSpacing:14, lyricsAlign:'center', layoutLeft:42, coverWidth:450,
     bgMode:'solid', beatMode:'off', phraseMode:'wash', phraseDuration:950, beatIntensity:55, backgroundBlur:28, backgroundOpacity:76,
     bpm:120, lyricsOffset:0, videoOffset:0, videoUrl:'', imageUrl:'',
-    reduceMotion:false, showHints:false, fullscreenOnOpen:false,
+    reduceMotion:false, showHints:false, fullscreenOnOpen:false, hideCursor:true,
     showArtwork:false, showTrackInfo:false, lyricDisplay:'square', autoFit:true, autoFitMin:28,
     motionDuration:460, wordEffect:'brat', wordMode:'automatic', autoHideMs:2600, hideControls:true, videoPlacement:'background', autoVideo:false, youtubeApiKey:'', betterLyricsApiKey:'',
     beatOffset:0, bgPalette:'custom', beatSmoothing:65, paletteCadence:'every', infoPlacement:'dock', captionGuard:18
@@ -60,7 +73,9 @@
     mute:'<path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="m17 9 5 6m0-6-5 6"/>',
     music:'<path d="M9 18V5l12-2v13M9 18c0 3-6 3-6 0s6-3 6 0Zm12-2c0 3-6 3-6 0s6-3 6 0Z"/>',
     video:'<rect x="3" y="5" width="15" height="14" rx="2"/><path d="m18 10 4-3v10l-4-3z"/>',
-    eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
+    eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    repeat:'<path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3" stroke-linecap="round" stroke-linejoin="round"/>',
+    repeatOne:'<path d="m17 2 4 4-4 4M3 10V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 14v1a3 3 0 0 1-3 3H3" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.25" font-family="Arial,sans-serif" font-size="9" font-weight="800" fill="currentColor" stroke="none" text-anchor="middle">1</text>'
   };
   const ico = (name, sz=20) => `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" aria-hidden="true">${svgs[name] || ''}</svg>`;
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, x => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -121,6 +136,8 @@
   let seekDragging = false, volumeDragging = false, settingsSelection = null;
   let uiHideTimer=0,uiPointerHeld=false,keyboardFocus=false, fittedWordStep=-888, wordAccuracy='line';
   let liveVideoTimer=null, sampledProgress=-1, sampledAt=0, lastClock=0, lastPaletteKey='';
+  let playbackIntent=null, playbackIntentUntil=0, playbackCommandAt=-9999;
+  let repeatIntent=null, repeatIntentUntil=0;
   // The v4 default only migrates layout/color settings, without deleting an existing key or per-track overrides.
   if(!storeGet('migrated-v4')) {
     const from=oldSettings||{};
@@ -149,7 +166,7 @@
   function createUI() {
     if ($('#bs-root')) return;
     const style = document.createElement('style');
-    style.id = 'bs-style';
+    style.id = 'bs-style';style.dataset.owner='brat-stage';
     style.textContent = window.__BRATSTAGE_CSS__ || '';
     document.head.append(style);
     root = document.createElement('div'); root.id = 'bs-root'; root.style.display = 'none'; root.setAttribute('aria-label','BratStage immersive music player');
@@ -185,6 +202,7 @@
             <button type="button" class="bs-icon-btn bs-plain-button" id="bs-prev" title="Previous" aria-label="Previous track">${ico('previous',21)}</button>
             <button type="button" class="bs-play-button" id="bs-toggle" aria-label="Pause" title="Play / pause">${ico('pause',25)}</button>
             <button type="button" class="bs-icon-btn bs-plain-button" id="bs-next" title="Next" aria-label="Next track">${ico('next',21)}</button>
+            <button type="button" class="bs-icon-btn bs-plain-button bs-repeat-button" id="bs-repeat" title="Repeat off" aria-label="Repeat off; click to repeat all" aria-pressed="false" data-mode="0">${ico('repeat',19)}</button>
           </div>
           <div class="bs-vol-area">
             <button type="button" class="bs-icon-btn bs-plain-button bs-video-toggle" id="bs-video-toggle" title="Toggle music video" aria-label="Toggle music video">${ico('video',18)}</button>
@@ -195,7 +213,7 @@
       </footer>
       <div class="bs-settings-scrim" id="bs-settings-scrim"></div>
       <aside class="bs-settings" id="bs-settings" aria-label="BRAT/STAGE settings" aria-modal="true" role="dialog">
-        <div class="bs-settings-header"><div><div class="bs-settings-title">customize.</div><div class="bs-settings-sub">BRAT/STAGE v4 · cinematic color</div></div><button type="button" class="bs-icon-btn" id="bs-settings-close" aria-label="Close settings">${ico('exit')}</button></div>
+        <div class="bs-settings-header"><div><div class="bs-settings-title">customize.</div><div class="bs-settings-sub">BRAT/STAGE v5 · cinematic color</div></div><button type="button" class="bs-icon-btn" id="bs-settings-close" aria-label="Close settings">${ico('exit')}</button></div>
         <div class="bs-settings-tabs" id="bs-settings-tabs" role="tablist"></div>
         <div class="bs-settings-content" id="bs-settings-content"></div>
       </aside><div class="bs-toast" id="bs-toast" role="status"></div>`
@@ -206,7 +224,7 @@
       track:$('#bs-track'), artist:$('#bs-artist'), album:$('#bs-album'), cover:$('#bs-cover'),
       list:$('#bs-line-list'), ghost:$('#bs-lyric-ghost'),
       elapsed:$('#bs-elapsed'), duration:$('#bs-duration'), progress:$('#bs-progress-filled'), handle:$('#bs-progress-handle'),
-      progressTrack:$('#bs-progress-track'), volume:$('#bs-volume-range'), toggle:$('#bs-toggle'), mute:$('#bs-mute'),
+      progressTrack:$('#bs-progress-track'), volume:$('#bs-volume-range'), toggle:$('#bs-toggle'), repeat:$('#bs-repeat'), mute:$('#bs-mute'),
       background:$('#bs-bg-media'), video:$('#bs-bg-video'), hint:$('#bs-hint')
     };
     bindUI(); renderTabs(); renderSettings(); applySettings(); refreshTrack(false);
@@ -229,7 +247,8 @@
     iconButtonClick('#bs-settings-scrim', () => toggleSettings(false));
     iconButtonClick('#bs-prev', () => S.Player.back());
     iconButtonClick('#bs-next', () => S.Player.next());
-    iconButtonClick('#bs-toggle', (e) => { S.Player.togglePlay(); tick(); });
+    iconButtonClick('#bs-toggle', requestPlaybackToggle);
+    iconButtonClick('#bs-repeat', cycleRepeat);
 
 
     iconButtonClick('#bs-video-toggle', () => {
@@ -270,13 +289,98 @@
     }});
     setupDials();setupAutoHide();
     root.addEventListener('dblclick', (e) => { if (e.target.id === 'bs-cover') toggleFullscreen(); });
-    window.addEventListener('message', handleYoutubeMessage);
-    document.addEventListener('fullscreenchange', () => {
+    listenGlobal(window,'message',handleYoutubeMessage);
+    listenGlobal(document,'fullscreenchange', () => {
       if ($('#bs-fullscreen')) $('#bs-fullscreen').innerHTML = ico(document.fullscreenElement === root ? 'shrink' : 'expand');
       root?.classList.toggle('bs-native-fullscreen',document.fullscreenElement===root);
     });
   }
 
+  // Spotify reports playback state asynchronously. Use explicit play/pause commands,
+  // keep the visual state optimistic briefly, and never regenerate the button SVG
+  // on every animation frame (doing that can cancel pointer clicks mid-press).
+  function renderPlaybackButton(playing) {
+    if (!controls.toggle) return;
+    const state = String(Boolean(playing));
+    if (controls.toggle.dataset.playing !== state) {
+      controls.toggle.innerHTML = ico(playing ? 'pause' : 'play', 27);
+      controls.toggle.dataset.playing = state;
+    }
+    const action = playing ? 'Pause' : 'Play';
+    if (controls.toggle.getAttribute('aria-label') !== action)
+      controls.toggle.setAttribute('aria-label',action);
+    controls.toggle.title=action;
+  }
+  function displayedPlaybackState(actual) {
+    if (playbackIntent !== null) {
+      if (actual === playbackIntent || performance.now() > playbackIntentUntil) playbackIntent = null;
+      else return playbackIntent;
+    }
+    return actual;
+  }
+  function requestPlaybackToggle() {
+    const now=performance.now();
+    if (now-playbackCommandAt < 190) return; // avoids accidental double-taps
+    const playing=Boolean(S.Player.isPlaying?.());
+    const next=!playing;
+    playbackCommandAt=now;
+    playbackIntent=next;
+    playbackIntentUntil=now+1100;
+    renderPlaybackButton(next);
+    try {
+      const op = next ? (S.Player.play || S.Player.togglePlay) : (S.Player.pause || S.Player.togglePlay);
+      const result=op?.call(S.Player);
+      if(result && typeof result.catch==='function') result.catch(err=>{
+        playbackIntent=null;
+        console.warn('[BratStage] Playback command failed:',err);
+        notify('Spotify could not change playback.');
+        tick();
+      });
+    } catch(err) {
+      playbackIntent=null;
+      console.warn('[BratStage] Playback command failed:',err);
+      notify('Spotify could not change playback.');
+    }
+  }
+  function renderRepeatButton(mode) {
+    if (!controls.repeat) return;
+    mode=[0,1,2].includes(mode)?mode:0;
+    if (controls.repeat.dataset.mode !== String(mode)) {
+      controls.repeat.innerHTML=ico(mode===2?'repeatOne':'repeat',20);
+      controls.repeat.dataset.mode=String(mode);
+    }
+    const label=mode===0?'Repeat off; click to repeat all':mode===1?'Repeat all; click to repeat this song':'Repeat one; click to turn repeat off';
+    controls.repeat.setAttribute('aria-label',label);
+    controls.repeat.title=mode===0?'Repeat off':mode===1?'Repeat all':'Repeat one';
+    controls.repeat.setAttribute('aria-pressed',String(mode!==0));
+  }
+  function displayedRepeatMode(actual) {
+    if(repeatIntent !== null) {
+      if(actual===repeatIntent || performance.now()>repeatIntentUntil) repeatIntent=null;
+      else return repeatIntent;
+    }
+    return actual;
+  }
+  function cycleRepeat() {
+    const actual=Number(S.Player.getRepeat?.()??0);
+    const current=displayedRepeatMode(actual);
+    const next=(current+1)%3;
+    repeatIntent=next;repeatIntentUntil=performance.now()+1100;
+    renderRepeatButton(next);
+    try {
+      const result=S.Player.setRepeat?.(next);
+      if(result && typeof result.catch==='function') result.catch(err=>{
+        repeatIntent=null;
+        console.warn('[BratStage] Repeat command failed:',err);
+        notify('Could not change repeat mode.');
+        tick();
+      });
+    }catch(err){
+      repeatIntent=null;
+      console.warn('[BratStage] Repeat command failed:',err);
+      notify('Could not change repeat mode.');
+    }
+  }
   function rootIsActive() { return root && root.style.display !== 'none'; }
   function openPlayer() {
     if (!root) createUI();
@@ -335,7 +439,7 @@
       last=performance.now();revealControls();
     },{passive:true});
     root.addEventListener('pointerdown',()=>{keyboardFocus=false;uiPointerHeld=true;revealControls();});
-    window.addEventListener('pointerup',()=>{uiPointerHeld=false;scheduleHide();});
+    listenGlobal(window,'pointerup',()=>{uiPointerHeld=false;scheduleHide();});
     root.addEventListener('focusin',revealControls);
     root.addEventListener('focusout',()=>setTimeout(()=>{if(!root.matches(':focus-within'))keyboardFocus=false;scheduleHide();},100));
     root.addEventListener('keydown',e=>{if(e.key==='Tab')keyboardFocus=true;revealControls();});
@@ -357,7 +461,7 @@
     if (e.altKey && e.code === 'KeyS') {e.preventDefault();toggleSettings(!settingsOpen);return;}
     if (settingsOpen) return;
     if (e.key === '[' || e.key === ']') { e.preventDefault(); setOffset(appliedOffset() + (e.key === ']' ? 50 : -50));return; }
-    if (e.code === 'Space') {e.preventDefault();S.Player.togglePlay();return;}
+    if (e.code === 'Space') {e.preventDefault();requestPlaybackToggle();return;}
     if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
       e.preventDefault();S.Player.seek(Math.max(0, C.clamp(S.Player.getProgress() + (e.code === 'ArrowRight'?5000:-5000), 0, S.Player.getDuration())));
     }
@@ -702,9 +806,13 @@
       controls.volume.value=String(Math.round(vol*100));
       controls.volume.style.setProperty('--bs-range-pct',Math.round(vol*100)+'%');
     }
-    controls.toggle.innerHTML=ico(playing?'pause':'play',27);
-    controls.toggle.setAttribute('aria-label',playing?'Pause':'Play');
-    controls.mute.innerHTML=ico(S.Player.getMute?.()?'mute':'volume',19);
+    renderPlaybackButton(displayedPlaybackState(playing));
+    renderRepeatButton(displayedRepeatMode(Number(S.Player.getRepeat?.()??0)));
+    const muted=String(Boolean(S.Player.getMute?.()));
+    if(controls.mute.dataset.muted!==muted){
+      controls.mute.innerHTML=ico(muted==='true'?'mute':'volume',19);
+      controls.mute.dataset.muted=muted;
+    }
     if(lyricsMode==='synced')renderLyrics();
     reactToBeats(progress,playing);
     if(settings.bgMode==='video' && performance.now()-lastVideoSync>2400){syncVideo();lastVideoSync=performance.now();}
@@ -790,7 +898,7 @@
     if(key==='betterLyricsApiKey'&&currentTrack){lyricCache.delete(currentTrack.uri);loadLyrics(currentTrack,trackSeq);}
     if (['bgMode','videoOffset','videoUrl','videoPlacement'].includes(key)) updateVideo();
     if(key==='videoOffset')syncVideo(true);
-    if(key==='hideControls'||key==='autoHideMs')revealControls();
+    if(key==='hideControls'||key==='hideCursor'||key==='autoHideMs')revealControls();
   }
   function applySettings() {
     if (!root) return;
@@ -815,7 +923,7 @@
       (settings.infoPlacement==='left'||settings.bgMode==='video'&&settings.videoPlacement==='artwork')?'bs-show-artwork':'',
       (settings.infoPlacement==='left')?'bs-show-meta':'',settings.videoPlacement==='artwork'?'bs-video-artwork':'',
       `bs-info-${settings.infoPlacement}`,(document.fullscreenElement===root)?'bs-native-fullscreen':'',
-      settings.reduceMotion?'bs-reduced':'',settingsOpen?'bs-settings-open':'',root.classList.contains('bs-paused')?'bs-paused':'',root.classList.contains('bs-has-video')?'bs-has-video':'',root.classList.contains('bs-ui-hidden')?'bs-ui-hidden':'',`bs-word-effect-${settings.wordEffect}`,`bs-phrase-${settings.phraseMode}`].join(' ');
+      settings.reduceMotion?'bs-reduced':'',settings.hideCursor?'bs-hide-cursor':'',settingsOpen?'bs-settings-open':'',root.classList.contains('bs-paused')?'bs-paused':'',root.classList.contains('bs-has-video')?'bs-has-video':'',root.classList.contains('bs-ui-hidden')?'bs-ui-hidden':'',`bs-word-effect-${settings.wordEffect}`,`bs-phrase-${settings.phraseMode}`].join(' ');
     $('#bs-video-toggle')?.setAttribute('aria-pressed',String(settings.bgMode==='video'));
     $('#bs-video-toggle')?.classList.toggle('bs-active',settings.bgMode==='video');
     controls.hint.style.display=settings.showHints?'':'none';
@@ -840,7 +948,7 @@
     return `<label class="bs-toggle">${esc(label)}<input type="checkbox" data-setting="${key}" ${settings[key]?'checked':''}></label>${note?`<p class="bs-note">${esc(note)}</p>`:''}`;
   }
   function renderTabs() {
-    const tabs={themes:'Themes',type:'Typography',motion:'Motion',background:'Backdrop',sync:'Sync & video'};
+    const tabs={themes:'Themes',type:'Typography',motion:'Motion',background:'Backdrop',sync:'Sync & video',diagnostics:'Diagnostics'};
     $('#bs-settings-tabs').innerHTML=Object.entries(tabs).map(([key,title]) => `<button type="button" class="bs-settings-tab" data-tab="${key}" role="tab" aria-selected="${settingsTab===key}">${title}</button>`).join('');
   }
   function renderSettings() {
@@ -852,7 +960,7 @@
     } else if(settingsTab==='type') {
       holder.innerHTML=`<div class="bs-settings-section"><h3>01 / the words</h3>${selectMarkup('font','Typeface',{'brutal':'Classic sans / BRAT','black':'Heavy black','condensed':'Condensed poster','rounded':'Soft rounded','geometric':'Geometric / Apple-like','serif':'Editorial serif','mono':'Typewriter / mono','system':'System UI'})}${selectMarkup('textCase','Letter case',{lowercase:'all lowercase',none:'As written',uppercase:'ALL CAPS'})}${rangeMarkup('fontSize','Lyric size',28,150,2,' px')}${rangeMarkup('fontWeight','Font weight',500,900,100,'')}${selectMarkup('lyricDisplay','Lyric composition',{square:'BRAT — growing square / auto zoom',locked:'BRAT — locked square / word reveal',reveal:'Cinematic words / no square',spotlight:'Spotlight / whole line',stack:'Apple-style multi-line'})}${selectMarkup('wordEffect','Individual word entrance',{brat:'BRAT pop / punchy',silk:'Silk fade',wipe:'Cut / wipe',glow:'Soft glow',snap:'Instant cut',none:'None'})}${rangeMarkup('visibleLines','Lines on screen (stack mode)',1,11,1,' lines')}${checkMarkup('autoFit','Auto-fit text to available space')}${rangeMarkup('autoFitMin','Minimum auto-fit size',16,80,2,' px')}${selectMarkup('wordMode','Word synchronization policy',{automatic:'True word timestamps, else full line (recommended)',estimated:'Force estimated word timings when unavailable',instant:'Always show entire line'})}${rangeMarkup('lineSpacing','Spacing between lines',0,36,2,' px')}${selectMarkup('lyricsAlign','Text alignment',{left:'Left / editorial',center:'Center / karaoke',right:'Right'})}${rangeMarkup('dim','Inactive line opacity',5,80,5,'%')}</div><div class="bs-settings-section"><h3>02 / composition</h3>${rangeMarkup('layoutLeft','Artwork column width',28,60,1,'%')}${rangeMarkup('coverWidth','Artwork maximum width',240,580,10,' px')}${selectMarkup('infoPlacement','Album artwork & track details',{dock:'Inside control dock (default)',left:'Large on the left',hidden:'Hide them entirely'})}</div><p class="bs-note">Word-precision availability depends on the song. Line count is exact. Very long lines can wrap, and font size may need reducing on smaller displays.</p>`;
     } else if(settingsTab==='motion') {
-      holder.innerHTML=`<div class="bs-settings-section"><h3>01 / transitions</h3>${selectMarkup('motion','Lyric motion',{whip:'Kinetic whip',cinema:'Cinematic focus pull',wipe:'Director wipe',glide:'Silky glide',type:'Staggered word reveal',snap:'Brutal snap',fade:'Soft fade',slide:'Kinetic slide up',pop:'BRAT pop',blur:'Dreamy blur',flip:'3D tilt'})}${rangeMarkup('motionDuration','Animation duration',150,1600,50,' ms')}${selectMarkup('effect','Visual effect',{none:'Clean / no effect',grain:'Vintage film grain',scanlines:'CRT scanlines',glow:'Beat glow',chromatic:'RGB glitch text',vignette:'Cinematic vignette'})}${checkMarkup('reduceMotion','Reduce animation','Disables animated lyrics and beat flashes; OS reduced-motion preference is also respected.')}${checkMarkup('showHints','Show keyboard shortcuts')}${checkMarkup('hideControls','Auto-hide screen controls')}${rangeMarkup('autoHideMs','Hide controls after',500,12000,250,' ms')}${checkMarkup('fullscreenOnOpen','Request real fullscreen when opened','The fullscreen API may be blocked by Spotify; the overlay still fills the client.')}</div>`;
+      holder.innerHTML=`<div class="bs-settings-section"><h3>01 / transitions</h3>${selectMarkup('motion','Lyric motion',{whip:'Kinetic whip',cinema:'Cinematic focus pull',wipe:'Director wipe',glide:'Silky glide',type:'Staggered word reveal',snap:'Brutal snap',fade:'Soft fade',slide:'Kinetic slide up',pop:'BRAT pop',blur:'Dreamy blur',flip:'3D tilt'})}${rangeMarkup('motionDuration','Animation duration',150,1600,50,' ms')}${selectMarkup('effect','Visual effect',{none:'Clean / no effect',grain:'Vintage film grain',scanlines:'CRT scanlines',glow:'Beat glow',chromatic:'RGB glitch text',vignette:'Cinematic vignette'})}${checkMarkup('reduceMotion','Reduce animation','Disables animated lyrics and beat flashes; OS reduced-motion preference is also respected.')}${checkMarkup('showHints','Show keyboard shortcuts')}${checkMarkup('hideControls','Auto-hide screen controls')}${checkMarkup('hideCursor','Hide mouse cursor with the controls','Mouse movement instantly restores the cursor and toolbar; settings remain accessible.')}${rangeMarkup('autoHideMs','Hide controls after',500,12000,250,' ms')}${checkMarkup('fullscreenOnOpen','Request real fullscreen when opened','The fullscreen API may be blocked by Spotify; the overlay still fills the client.')}</div>`;
     } else if(settingsTab==='background') {
       holder.innerHTML=`<div class="bs-settings-section"><h3>01 / the canvas</h3>${selectMarkup('bgMode','Background source',{solid:'Solid / color-reactive',album:'Blurred album artwork',image:'Custom photo / GIF',video:'YouTube music video (muted)'})}${rangeMarkup('backgroundOpacity','Media opacity',10,100,5,'%')}${rangeMarkup('backgroundBlur','Media blur',0,70,2,' px')}${selectMarkup('videoPlacement','Video placement',{background:'Full background',artwork:'Left video panel instead of album art'})}</div>
       <div class="bs-settings-section"><h3>02 / your picture</h3><div class="bs-field"><label for="bs-file-bg">Choose a photo or GIF (up to 20 MB)</label><input id="bs-file-bg" class="bs-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></div><div class="bs-field"><label for="bs-image-url">Or paste an image URL</label><input type="text" id="bs-image-url" data-setting="imageUrl" placeholder="https://example.com/background.gif" value="${esc(settings.imageUrl)}"></div><div class="bs-action-row"><button class="bs-action" data-action="clear-image">Remove uploaded image</button><button class="bs-action bs-action-accent" data-action="use-image">Use custom background</button></div><p class="bs-note">Uploaded media is stored in your local Spotify profile via IndexedDB, never sent to a service by BratStage. Online image URLs are loaded from the URL you enter.</p></div>`;
@@ -862,6 +970,14 @@
       <div class="bs-settings-section"><h3>02 / word timing sources</h3><div class="bs-field"><label for="bs-field-betterLyricsApiKey">Better Lyrics API key (optional)</label><input type="password" id="bs-field-betterLyricsApiKey" data-setting="betterLyricsApiKey" placeholder="For uncached word-timed tracks" value="${esc(settings.betterLyricsApiKey)}"><small>This is NOT the Google/YouTube key. Only sent to Better Lyrics. Leave blank for cached public tracks.</small></div><p class="bs-note" id="bs-precision-note">${esc(lyricsSource||'Looking up lyrics')} · ${esc(wordAccuracy)}</p><p class="bs-note">Priority: locally imported word-timed TTML/LRC → Better Lyrics TTML → Unison community lyrics → LRCLIB. Estimated word timings are never presented as real karaoke timestamps.</p></div><div class="bs-settings-section"><h3>03 / advanced lyric files</h3><div class="bs-field"><label for="bs-file-lrc">Import timed LRC / enhanced LRC / TTML file for this track</label><input id="bs-file-lrc" class="bs-file-input" type="file" accept=".lrc,.ttml,.xml,.txt,text/plain,application/xml"></div><div class="bs-action-row"><button class="bs-action" data-action="remove-lrc">Remove custom lyrics</button><button class="bs-action" data-action="reload-lyrics">Reload all lyric providers</button></div><p class="bs-note">Standard [mm:ss.xx] lines are synchronized. Enhanced LRC also supports &lt;mm:ss.xx&gt; word timestamps. Unsynced plain text cannot magically become word-synced.</p></div>
       <div class="bs-settings-section"><h3>03 / video background</h3><div class="bs-field"><label for="bs-video-url">YouTube URL for this song</label><input id="bs-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." value="${esc(video)}"><small>Paste a YouTube URL to load instantly. Enter confirms the link; it saves automatically.</small></div>${checkMarkup('autoVideo','Auto-find official video for each track','Requires your own YouTube Data API v3 key. Songs without confidently matched videos are skipped.') }<div class="bs-field"><label for="bs-field-youtubeApiKey">YouTube Data API v3 key</label><input type="password" id="bs-field-youtubeApiKey" data-setting="youtubeApiKey" value="${esc(settings.youtubeApiKey)}" placeholder="Optional: paste your Google Cloud API key"><small>Stored locally in your Spotify profile. API requests go directly to Google. Restrict your key and quota.</small></div>${rangeMarkup('videoOffset','Video offset (video ahead +)',-30000,30000,100,' ms')}${rangeMarkup('captionGuard','Mask bottom of YouTube picture',0,35,1,' %')}<div class="bs-action-row"><button class="bs-action bs-action-accent" data-action="save-video">Load now</button><button class="bs-action" data-action="search-video">Find on YouTube</button><button class="bs-action" data-action="clear-video">Clear</button></div><p class="bs-note" id="bs-video-status">YouTube auto-matching uses a strict title, artist and channel match. No API key? Manual YouTube URLs still work. YouTube plays muted so only Spotify provides audio. Ads, video embedding restrictions, unavailable videos, and autoplay policies cannot be bypassed. Synchronization is best effort.</p></div>
       <div class="bs-settings-section"><h3>04 / portability</h3><div class="bs-action-row"><button class="bs-action" data-action="export">Export preferences JSON</button><button class="bs-action" data-action="import">Import preferences JSON</button><input type="file" id="bs-import-settings" style="display:none" accept=".json,application/json"><button class="bs-action" data-action="reset">Reset all appearance settings</button></div></div>`;
+    } else if(settingsTab==='diagnostics') {
+      const details={Platform:PLATFORM,Version:'5.0.0','Track loaded':currentTrack?'Yes':'No',
+        'Lyrics source':lyricsSource||'None','Timing accuracy':wordAccuracy,
+        'Lyric state':lyricsMode,'Video state':videoStatus,
+        'Player API':typeof S.Player?.play==='function'?'Available':'Limited',
+        'Audio analysis':typeof S.getAudioData==='function'?'Available':'Not exposed',
+        'Real fullscreen':document.fullscreenEnabled?'Available':'Unavailable'};
+      holder.innerHTML=`<div class="bs-settings-section"><h3>Platform diagnostics</h3>${Object.entries(details).map(([name,value])=>`<div class="bs-field"><div class="bs-field-header"><label>${esc(name)}</label><span class="bs-value">${esc(value)}</span></div></div>`).join('')}</div><div class="bs-settings-section"><h3>Troubleshooting</h3><p class="bs-note">Word-level synchronization requires word-timed lyrics. Native SpotiKit does not expose every Spicetify function; unsupported audio analysis is disabled rather than guessed.</p><div class="bs-action-row"><button class="bs-action bs-action-accent" data-action="copy-diagnostics">Copy safe diagnostics</button><button class="bs-action" data-action="reload-lyrics">Retry lyrics</button></div><p class="bs-note">This diagnostic excludes track titles, API keys, and private URLs.</p></div>`;
     }
   }
   function setPreset(key) {
@@ -941,6 +1057,12 @@
       const query=encodeURIComponent(`${currentTrack.artist} ${currentTrack.name} official music video`);
       window.open(`https://www.youtube.com/results?search_query=${query}`,'_blank','noopener,noreferrer');
     }
+    if(action==='copy-diagnostics') {
+      const report={project:'BRAT/STAGE',version:'5.0.0',platform:PLATFORM,lyricsMode,
+        lyricsSource,wordAccuracy,videoStatus,hasTrack:Boolean(currentTrack),
+        playerAPI:Boolean(S.Player?.play),audioAnalysis:Boolean(S.getAudioData)};
+      navigator.clipboard?.writeText(JSON.stringify(report,null,2)).then(()=>notify('Diagnostics copied.')).catch(()=>notify('Could not copy diagnostics.'));
+    }
     if(action==='export') exportPreferences();
     if(action==='import') $('#bs-import-settings')?.click();
     if(action==='reset') {settings=validate(DEFAULT);storeSet('settings',JSON.stringify(settings));applySettings();renderSettings();renderLyrics(true);notify('Appearance reset to BRAT Classic.');}
@@ -1005,7 +1127,7 @@
   }
   function exportPreferences() {
     // The personal YouTube API key is deliberately excluded from exported presets.
-    const payload={schema:'bratstage-v4',settings:{...settings,youtubeApiKey:'',betterLyricsApiKey:''},trackVideos,trackOffsets};
+    const payload={schema:'bratstage-v5',settings:{...settings,youtubeApiKey:'',betterLyricsApiKey:''},trackVideos,trackOffsets};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const link=document.createElement('a');link.href=url;link.download='bratstage-preferences.json';
@@ -1017,7 +1139,7 @@
     if(file.size>1000000)return notify('Preferences file too large.');
     try {
       const payload=JSON.parse(await file.text());
-      if(!['bratstage-v1','bratstage-v2','bratstage-v3','bratstage-v4'].includes(payload.schema)||typeof payload.settings!=='object')throw new Error('Invalid format');
+      if(!['bratstage-v1','bratstage-v2','bratstage-v3','bratstage-v4','bratstage-v5'].includes(payload.schema)||typeof payload.settings!=='object')throw new Error('Invalid format');
       settings=validate(payload.settings);
       if(payload.trackVideos && typeof payload.trackVideos==='object')trackVideos=Object.fromEntries(Object.entries(payload.trackVideos).filter(([k,v])=>typeof k==='string'&&C.videoId(v)));
       if(payload.trackOffsets && typeof payload.trackOffsets==='object')trackOffsets=Object.fromEntries(Object.entries(payload.trackOffsets).filter(([k,v])=>typeof k==='string'&&Number.isFinite(Number(v))).map(([k,v])=>[k,C.clamp(v,-5000,5000)]));
@@ -1169,7 +1291,7 @@
 
   function boot() {
     createUI();loadBackground();
-    document.addEventListener('keydown',keyboard,true);
+    listenGlobal(document,'keydown',keyboard,true);
     const onSong=()=>{if(root){refreshTrack(false);if(minimized)updateMini();}};
     const onPlay=()=>{resetPlaybackClock();if(rootIsActive()){tick();syncVideo(true);}};
     const onProgress=()=>{if(rootIsActive())tick();};
@@ -1178,14 +1300,37 @@
     }
     let registered=false;
     try {
-      if(S.Playbar?.Button){new S.Playbar.Button('BRAT/STAGE fullscreen lyrics',ico('music',18),()=>rootIsActive()?closePlayer():openPlayer());registered=true;}
+      if(S.Playbar?.Button){const btn=new S.Playbar.Button('BRAT/STAGE fullscreen lyrics',ico('music',18),()=>rootIsActive()?closePlayer():openPlayer());if(btn?.remove)ownedButtons.push(btn);registered=true;}
     }catch(e){console.warn('[BratStage] Playbar button unavailable',e);}
     try {
-      if(S.Topbar?.Button){new S.Topbar.Button('BRAT/STAGE',ico('expand',18),()=>rootIsActive()?closePlayer():openPlayer(),false,true);registered=true;}
+      if(!registered && S.Topbar?.Button){const btn=new S.Topbar.Button('BRAT/STAGE',ico('expand',18),()=>rootIsActive()?closePlayer():openPlayer(),false,true);if(btn?.remove)ownedButtons.push(btn);registered=true;}
     }catch(e){console.warn('[BratStage] Topbar button unavailable',e);}
     if(!registered)console.warn('[BratStage] No toolbar API available: use Alt+B to open.');
-    window.BratStage = Object.freeze({open:openPlayer,close:closePlayer,minimize:minimizePlayer,settings:()=>{openPlayer();toggleSettings(true);},getSettings:()=>({...settings}),version:'4.0.0'});
-    console.info('[BratStage v4] Ready. Press Alt+B or use the Spotify playbar button.');
+    window.BratStage = Object.freeze({open:openPlayer,close:closePlayer,minimize:minimizePlayer,
+      settings:()=>{openPlayer();toggleSettings(true);},
+      diagnostics:()=>({platform:PLATFORM,version:'5.0.0',hasTrack:Boolean(currentTrack),lyricsSource,precision:wordAccuracy,video:videoStatus}),
+      getSettings:()=>({...settings,youtubeApiKey:'',betterLyricsApiKey:''}),version:'5.0.0'});
+    console.info('[BratStage v5] '+PLATFORM+' ready. Press Alt+B or use the toolbar button.');
+  }
+  function destroy() {
+    if (disposed) return;
+    disposed = true;
+    open = false; minimized = false;
+    trackSeq++; fetchController?.abort();
+    if (timer) cancelAnimationFrame(timer);
+    clearTimeout(uiHideTimer);clearTimeout(toastTimer);clearTimeout(ghostTimer);
+    clearTimeout(liveVideoTimer);
+    try { videoPause(); } catch {}
+    try { if(document.fullscreenElement === root) document.exitFullscreen?.().catch(()=>{}); } catch {}
+    for(const [event,fn] of listening) try { S.Player.removeEventListener?.(event,fn); } catch {}
+    for(const release of globalListeners) try { release(); } catch {}
+    for(const btn of ownedButtons) try { btn.remove?.(); } catch {}
+    if (imageObjectUrl) try { URL.revokeObjectURL(imageObjectUrl); } catch {}
+    root?.remove();mini?.remove();
+    if(document.getElementById('bs-style')?.dataset.owner==='brat-stage') document.getElementById('bs-style').remove();
+    if(window.BratStage?.version==='5.0.0') delete window.BratStage;
+    window.__bratStageLoaded=false;
   }
   boot();
-})();
+  return destroy;
+}

@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>BRAT/STAGE Spicetify tests</title></head><body><nav id="test-nav"></nav>
+<script>
+(() => {
+const ls=new Map();
+const P={data:{item:{uri:'spotify:track:4uLU6hMCjMI75M1A2tKUQC',name:'Original Demo Track',artists:[{name:'Demo Artist'}],metadata:{album_title:'Demo Album',image_url:''}}},
+ playing:false,progress:0,repeat:0,volume:.5,
+ isPlaying(){return this.playing},getProgress(){return this.progress},getDuration(){return 180000},getVolume(){return this.volume},getMute(){return false},getRepeat(){return this.repeat},
+ play(){this.playing=true;this.emit('onplaypause')},pause(){this.playing=false;this.emit('onplaypause')},togglePlay(){this.playing=!this.playing;this.emit('onplaypause')},
+ setRepeat(n){this.repeat=n},setVolume(n){this.volume=n},toggleMute(){},back(){},next(){},seek(n){this.progress=n;this.emit('onprogress')},
+ addEventListener(t,fn){if(!ls.has(t))ls.set(t,new Set());ls.get(t).add(fn)},removeEventListener(t,fn){ls.get(t)?.delete(fn)},emit(t){for(const fn of ls.get(t)||[])fn()}}
+const btn=(title,svg,fn)=>{const b=document.createElement('button');b.textContent=title;b.onclick=fn;document.getElementById('test-nav').append(b);return {remove:()=>b.remove()}};
+window.Spicetify={Player:P,Platform:{},LocalStorage:{get:k=>localStorage.getItem(k),set:(k,v)=>localStorage.setItem(k,v),remove:k=>localStorage.removeItem(k)},Playbar:{Button:class{constructor(...args){return btn(...args)}}},Topbar:{Button:class{constructor(...args){return btn(...args)}}},showNotification:console.log};
+})();
+</script><script src="../bratstage.js"></script></body></html>

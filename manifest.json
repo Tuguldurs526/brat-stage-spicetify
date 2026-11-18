@@ -1,7 +1,7 @@
 [
   {
     "name": "BRAT/STAGE",
-    "description": "Cinematic fullscreen BRAT-style word-synchronized lyrics, dynamic color palettes, optional music videos, responsive hover controls.",
+    "description": "Immersive BRAT-style fullscreen lyrics, precise word timing when available, cinematic palettes, customizable visuals and optional YouTube backgrounds.",
     "preview": "screenshots/preview-player.png",
     "main": "bratstage.js",
     "readme": "README.md",

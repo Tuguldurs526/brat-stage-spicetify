@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><title>BRAT/STAGE SpotiKit adapter tests</title></head><body><nav id="test-nav"></nav>
+<script>
+(() => {
+const listeners = new Map();
+const P = {
+ track:{uri:'spotify:track:4uLU6hMCjMI75M1A2tKUQC',name:'Original Demo Track',artists:[{name:'Demo Artist'}],album:{name:'Demo Album',images:[{url:'https://i.scdn.co/image/ab67616d00001e02c9d80c8d1d7cd49e024321ed'}]}},
+ isPlaying:false,position:0,duration:180000,volume:.5,muted:false,repeat:'off',
+ play() {this.isPlaying=true;this.emit('playpause');return Promise.resolve();},pause(){this.isPlaying=false;this.emit('playpause');return Promise.resolve();},
+ toggle(){return this.isPlaying?this.pause():this.play();},
+ next(){this.emit('track')},previous(){this.emit('track')},
+ seek(n){this.position=n;this.emit('progress')},setVolume(n){this.volume=n},setMuted(n){this.muted=n},setRepeat(n){this.repeat=n},
+ on(type,fn){if(!listeners.has(type))listeners.set(type,new Set());listeners.get(type).add(fn);},
+ off(type,fn){listeners.get(type)?.delete(fn)},emit(type){for(const fn of listeners.get(type)||[])fn(this.state||null)},
+ get listenerCount(){return [...listeners.values()].reduce((n,ls)=>n+ls.size,0)}
+};
+const data=new Map();
+const addButton = opts => {const b=document.createElement('button');b.textContent=opts.label;b.dataset.pluginButton='yes';b.onclick=opts.onClick;document.getElementById('test-nav').append(b);return {remove(){b.remove();},element:b};};
+window.SpotiKit={Player:P,Playbar:{add:addButton},Topbar:{add:addButton},
+ Storage:{get:(k,def)=>data.has(k)?data.get(k):def,set:(k,v)=>data.set(k,v),remove:(k)=>data.delete(k)},
+ notify:(s)=>{window.__messages.push(s)}
+};
+window.__messages=[];
+})();
+</script>
+<script type="module">
+import start from '../dist/bratstage.spotikit.js';
+const cleanup=[];
+window.__start=()=> start({onStop(fn){cleanup.push(fn)}});
+window.__dispose=()=>{for(const f of cleanup.splice(0))f();};
+window.__start();
+</script></body></html>
