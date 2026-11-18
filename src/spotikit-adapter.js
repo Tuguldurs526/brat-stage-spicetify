@@ -82,16 +82,20 @@ function createSpotiKitAdapter(kit, context) {
       try { kit.Storage?.remove(key); } catch {}
     }
   };
+  // A custom SVG rather than an unsupported named icon. In SpotiKit 1.3.x,
+  // unrecognized icon strings can appear as literal letters inside the playbar.
+  // SpotiKit.Topbar/Playbar explicitly accept SVG markup.
+  const STAGE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5" stroke-width="1.55"/><path d="M8.2 6.9v10.2" stroke-width="2.45"/><path d="M9.8 12.3c1.2-1.5 3.5-2.0 5.0-1.0 2.4 1.6 1.7 5.5-1.7 5.9-1.8.2-3.1-.6-3.8-1.8" stroke-width="2.35"/><circle cx="17.05" cy="7.25" r="1.3" fill="currentColor" stroke="none"/></svg>`;
   const Playbar = {Button: class {
     constructor(label,_svg,onClick) {
       // SpotiKit accepts named icons and automatically removes these buttons on stop.
-      const button=kit.Playbar.add({label,icon:'music',onClick});
+      const button=kit.Playbar.add({label,icon:STAGE_ICON,onClick});
       return button;
     }
   }};
   const Topbar = {Button: class {
     constructor(label,_svg,onClick) {
-      return kit.Topbar.add({label,icon:'maximize',onClick,side:'right'});
+      return kit.Topbar.add({label,icon:STAGE_ICON,onClick,side:'right'});
     }
   }};
   return {

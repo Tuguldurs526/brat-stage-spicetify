@@ -14,7 +14,7 @@ const P = {
  get listenerCount(){return [...listeners.values()].reduce((n,ls)=>n+ls.size,0)}
 };
 const data=new Map();
-const addButton = opts => {const b=document.createElement('button');b.textContent=opts.label;b.dataset.pluginButton='yes';b.onclick=opts.onClick;document.getElementById('test-nav').append(b);return {remove(){b.remove();},element:b};};
+const addButton = opts => {const b=document.createElement('button');b.innerHTML=opts.icon;b.title=opts.label;b.dataset.icon='svg';b.dataset.pluginButton='yes';b.onclick=opts.onClick;document.getElementById('test-nav').append(b);return {remove(){b.remove();},element:b};};
 window.SpotiKit={Player:P,Playbar:{add:addButton},Topbar:{add:addButton},
  Storage:{get:(k,def)=>data.has(k)?data.get(k):def,set:(k,v)=>data.set(k,v),remove:(k)=>data.delete(k)},
  notify:(s)=>{window.__messages.push(s)}

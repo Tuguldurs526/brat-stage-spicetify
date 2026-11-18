@@ -1,5 +1,15 @@
 # Changelog
 
+## v5.1.0 · Marketplace presentation & branding (2026-11-18)
+
+- **New branded playback icon:** replaced SpotiKit's unsupported `music` icon name with a compact custom SVG. Spicetify now uses the same brand mark instead of its old music-note icon.
+- **SpotiKit compatibility metadata:** declared a provisional target range `1.3.8 - 1.3.9` in `spotikit.json`. **This is not a claim of live testing**; verify each supported Spotify build before widening the range.
+- **Sharper Marketplace introduction:** concise and feature-focused copy in both manifests.
+- **New screenshot gallery:** actual user-provided session capture plus fresh cinematic browser renders, settings views, and an animated word-reveal demo. Preview images created with original demonstration lyrics.
+- **New README:** direct installation, controls, configuration screenshots, privacy notes, testing steps, star/review links, and clear limits for word-timed sources and YouTube.
+- Preserved v5.0 functionality, saved preferences, existing user settings, and both platform distributions.
+
+
 ## v5.0.0 — November 18, 2026
 
 **Cross-platform release**

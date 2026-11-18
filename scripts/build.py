@@ -8,7 +8,7 @@ css=(src/'style.css').read_text(encoding='utf8')
 core=(src/'core.js').read_text(encoding='utf8')
 app=(src/'extension.js').read_text(encoding='utf8')
 adapter=(src/'spotikit-adapter.js').read_text(encoding='utf8')
-header='/* BRAT/STAGE v5.0.0 | MIT | Source of truth: src/ */\n'
+header='/* BRAT/STAGE v5.1.0 | MIT | Source of truth: src/ */\n'
 common='const __BRATSTAGE_CSS__ = '+json.dumps(css,ensure_ascii=False)+';\n'
 # Both builds reuse the same core, UI, and preferences. Only startup differs.
 shared=common+core+'\n'+app+'\n'

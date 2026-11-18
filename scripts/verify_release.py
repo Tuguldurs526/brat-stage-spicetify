@@ -13,4 +13,5 @@ for f in [spic[0]['main'],spic[0]['preview'],spic[0]['readme'],spoti['main'],spo
 for f in [spic[0]['main'],spoti['main']]:
     subprocess.run(['node','--check',str(root/f)],check=True)
 subprocess.run(['node','--test',str(root/'tests/core.test.js'),str(root/'tests/core_v4.test.js')],check=True,stdout=subprocess.DEVNULL)
-print('PASS: both manifests, file references, JS syntax and 18 core tests')
+subprocess.run([sys.executable,str(root/'tests/test_release.py')],check=True)
+print('PASS: both manifests, version metadata, SVG branding, README/gallery, JS syntax and 18 core tests')

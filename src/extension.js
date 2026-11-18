@@ -1,4 +1,4 @@
-/* BRAT/STAGE v5 — shared full-screen lyrics extension for Spicetify and SpotiKit.
+/* BRAT/STAGE v5.1 — shared full-screen lyrics extension for Spicetify and SpotiKit.
  * No third-party JS dependencies. LRCLIB lyric text belongs to its respective holders.
  * THIS_FILE_IS_COMPILED with src/core.js + src/style.css; see scripts/build.py.
  */
@@ -71,6 +71,7 @@ function BratStageBootstrap(runtime, lifecycle) {
     minimize:'<path d="M5 12h14" stroke-width="2.2" stroke-linecap="round"/>',
     volume:'<path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M17 9c1.8 1.7 1.8 4.3 0 6M19 6c3.8 3.1 3.8 8.9 0 12" stroke-linecap="round"/>',
     mute:'<path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="m17 9 5 6m0-6-5 6"/>',
+    stage:'<rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5" stroke-width="1.55"/><path d="M8.2 6.9v10.2" stroke-width="2.45" stroke-linecap="round"/><path d="M9.8 12.3c1.2-1.5 3.5-2 5-1 2.4 1.6 1.7 5.5-1.7 5.9-1.8.2-3.1-.6-3.8-1.8" stroke-width="2.35" stroke-linecap="round"/><circle cx="17.05" cy="7.25" r="1.3" fill="currentColor" stroke="none"/>',
     music:'<path d="M9 18V5l12-2v13M9 18c0 3-6 3-6 0s6-3 6 0Zm12-2c0 3-6 3-6 0s6-3 6 0Z"/>',
     video:'<rect x="3" y="5" width="15" height="14" rx="2"/><path d="m18 10 4-3v10l-4-3z"/>',
     eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
@@ -213,7 +214,7 @@ function BratStageBootstrap(runtime, lifecycle) {
       </footer>
       <div class="bs-settings-scrim" id="bs-settings-scrim"></div>
       <aside class="bs-settings" id="bs-settings" aria-label="BRAT/STAGE settings" aria-modal="true" role="dialog">
-        <div class="bs-settings-header"><div><div class="bs-settings-title">customize.</div><div class="bs-settings-sub">BRAT/STAGE v5 · cinematic color</div></div><button type="button" class="bs-icon-btn" id="bs-settings-close" aria-label="Close settings">${ico('exit')}</button></div>
+        <div class="bs-settings-header"><div><div class="bs-settings-title">customize.</div><div class="bs-settings-sub">BRAT/STAGE v5.1 · cinematic color</div></div><button type="button" class="bs-icon-btn" id="bs-settings-close" aria-label="Close settings">${ico('exit')}</button></div>
         <div class="bs-settings-tabs" id="bs-settings-tabs" role="tablist"></div>
         <div class="bs-settings-content" id="bs-settings-content"></div>
       </aside><div class="bs-toast" id="bs-toast" role="status"></div>`
@@ -971,7 +972,7 @@ function BratStageBootstrap(runtime, lifecycle) {
       <div class="bs-settings-section"><h3>03 / video background</h3><div class="bs-field"><label for="bs-video-url">YouTube URL for this song</label><input id="bs-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." value="${esc(video)}"><small>Paste a YouTube URL to load instantly. Enter confirms the link; it saves automatically.</small></div>${checkMarkup('autoVideo','Auto-find official video for each track','Requires your own YouTube Data API v3 key. Songs without confidently matched videos are skipped.') }<div class="bs-field"><label for="bs-field-youtubeApiKey">YouTube Data API v3 key</label><input type="password" id="bs-field-youtubeApiKey" data-setting="youtubeApiKey" value="${esc(settings.youtubeApiKey)}" placeholder="Optional: paste your Google Cloud API key"><small>Stored locally in your Spotify profile. API requests go directly to Google. Restrict your key and quota.</small></div>${rangeMarkup('videoOffset','Video offset (video ahead +)',-30000,30000,100,' ms')}${rangeMarkup('captionGuard','Mask bottom of YouTube picture',0,35,1,' %')}<div class="bs-action-row"><button class="bs-action bs-action-accent" data-action="save-video">Load now</button><button class="bs-action" data-action="search-video">Find on YouTube</button><button class="bs-action" data-action="clear-video">Clear</button></div><p class="bs-note" id="bs-video-status">YouTube auto-matching uses a strict title, artist and channel match. No API key? Manual YouTube URLs still work. YouTube plays muted so only Spotify provides audio. Ads, video embedding restrictions, unavailable videos, and autoplay policies cannot be bypassed. Synchronization is best effort.</p></div>
       <div class="bs-settings-section"><h3>04 / portability</h3><div class="bs-action-row"><button class="bs-action" data-action="export">Export preferences JSON</button><button class="bs-action" data-action="import">Import preferences JSON</button><input type="file" id="bs-import-settings" style="display:none" accept=".json,application/json"><button class="bs-action" data-action="reset">Reset all appearance settings</button></div></div>`;
     } else if(settingsTab==='diagnostics') {
-      const details={Platform:PLATFORM,Version:'5.0.0','Track loaded':currentTrack?'Yes':'No',
+      const details={Platform:PLATFORM,Version:'5.1.0','Track loaded':currentTrack?'Yes':'No',
         'Lyrics source':lyricsSource||'None','Timing accuracy':wordAccuracy,
         'Lyric state':lyricsMode,'Video state':videoStatus,
         'Player API':typeof S.Player?.play==='function'?'Available':'Limited',
@@ -1058,7 +1059,7 @@ function BratStageBootstrap(runtime, lifecycle) {
       window.open(`https://www.youtube.com/results?search_query=${query}`,'_blank','noopener,noreferrer');
     }
     if(action==='copy-diagnostics') {
-      const report={project:'BRAT/STAGE',version:'5.0.0',platform:PLATFORM,lyricsMode,
+      const report={project:'BRAT/STAGE',version:'5.1.0',platform:PLATFORM,lyricsMode,
         lyricsSource,wordAccuracy,videoStatus,hasTrack:Boolean(currentTrack),
         playerAPI:Boolean(S.Player?.play),audioAnalysis:Boolean(S.getAudioData)};
       navigator.clipboard?.writeText(JSON.stringify(report,null,2)).then(()=>notify('Diagnostics copied.')).catch(()=>notify('Could not copy diagnostics.'));
@@ -1300,17 +1301,17 @@ function BratStageBootstrap(runtime, lifecycle) {
     }
     let registered=false;
     try {
-      if(S.Playbar?.Button){const btn=new S.Playbar.Button('BRAT/STAGE fullscreen lyrics',ico('music',18),()=>rootIsActive()?closePlayer():openPlayer());if(btn?.remove)ownedButtons.push(btn);registered=true;}
+      if(S.Playbar?.Button){const btn=new S.Playbar.Button('BRAT/STAGE fullscreen lyrics',ico('stage',18),()=>rootIsActive()?closePlayer():openPlayer());if(btn?.remove)ownedButtons.push(btn);registered=true;}
     }catch(e){console.warn('[BratStage] Playbar button unavailable',e);}
     try {
-      if(!registered && S.Topbar?.Button){const btn=new S.Topbar.Button('BRAT/STAGE',ico('expand',18),()=>rootIsActive()?closePlayer():openPlayer(),false,true);if(btn?.remove)ownedButtons.push(btn);registered=true;}
+      if(!registered && S.Topbar?.Button){const btn=new S.Topbar.Button('BRAT/STAGE',ico('stage',18),()=>rootIsActive()?closePlayer():openPlayer(),false,true);if(btn?.remove)ownedButtons.push(btn);registered=true;}
     }catch(e){console.warn('[BratStage] Topbar button unavailable',e);}
     if(!registered)console.warn('[BratStage] No toolbar API available: use Alt+B to open.');
     window.BratStage = Object.freeze({open:openPlayer,close:closePlayer,minimize:minimizePlayer,
       settings:()=>{openPlayer();toggleSettings(true);},
-      diagnostics:()=>({platform:PLATFORM,version:'5.0.0',hasTrack:Boolean(currentTrack),lyricsSource,precision:wordAccuracy,video:videoStatus}),
-      getSettings:()=>({...settings,youtubeApiKey:'',betterLyricsApiKey:''}),version:'5.0.0'});
-    console.info('[BratStage v5] '+PLATFORM+' ready. Press Alt+B or use the toolbar button.');
+      diagnostics:()=>({platform:PLATFORM,version:'5.1.0',hasTrack:Boolean(currentTrack),lyricsSource,precision:wordAccuracy,video:videoStatus}),
+      getSettings:()=>({...settings,youtubeApiKey:'',betterLyricsApiKey:''}),version:'5.1.0'});
+    console.info('[BratStage v5.1] '+PLATFORM+' ready. Press Alt+B or use the toolbar button.');
   }
   function destroy() {
     if (disposed) return;
@@ -1328,7 +1329,7 @@ function BratStageBootstrap(runtime, lifecycle) {
     if (imageObjectUrl) try { URL.revokeObjectURL(imageObjectUrl); } catch {}
     root?.remove();mini?.remove();
     if(document.getElementById('bs-style')?.dataset.owner==='brat-stage') document.getElementById('bs-style').remove();
-    if(window.BratStage?.version==='5.0.0') delete window.BratStage;
+    if(window.BratStage?.version==='5.1.0') delete window.BratStage;
     window.__bratStageLoaded=false;
   }
   boot();

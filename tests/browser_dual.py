@@ -33,8 +33,13 @@ with sync_playwright() as playwright:
                window.__dispose=()=>{for(const f of cleanup.splice(0))f()};
                window.__start();
             }''',payload)
-        page.wait_for_function("document.querySelector('#bs-root') && window.BratStage?.version==='5.0.0'",timeout=8000)
+        page.wait_for_function("document.querySelector('#bs-root') && window.BratStage?.version==='5.1.0'",timeout=8000)
         assert page.evaluate('window.BratStage.diagnostics().platform')==platform
+        if platform=='SpotiKit':
+            # Regression: a missing named icon used to render literal 'm u s i c' vertically.
+            assert page.locator('[data-plugin-button] svg').count()>=1, 'SpotiKit icon not rendered as SVG'
+            assert page.locator('[data-plugin-button]').first.get_attribute('data-icon')=='svg', 'expected custom vector icon'
+
         page.evaluate('window.BratStage.open()')
         page.wait_for_selector('#bs-root .bs-footer',state='visible')
         # During the instrumental intro no future lyrics are displayed.

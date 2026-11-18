@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BRAT/STAGE v4 • Interactive simulated Spotify player</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BRAT/STAGE v5.1 • Interactive simulated Spotify player</title>
 <style>body{margin:0;background:#0b0c0b;color:white;font:14px Arial,sans-serif}</style>
 </head><body>
 <script>
@@ -46,6 +46,6 @@
     getAudioData:async()=>({beats:Array.from({length:190},(_,i)=>({start:i*.5,confidence:.75}))})
   };
 </script>
-<script src="bratstage.js"></script>
+
 <script>window.addEventListener('load',()=>setTimeout(()=>window.BratStage?.open(),130));</script>
 </body></html>
